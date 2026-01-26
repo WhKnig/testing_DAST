@@ -1,0 +1,53 @@
+---
+- name: Install dependencies (Ubuntu)
+  apt:
+    name: [nodejs, npm, postgresql, python3-psycopg2]
+    state: present
+    update_cache: yes
+
+- name: Create app directory
+  file:
+    path: /home/vagrant/app
+    state: directory
+    owner: vagrant
+    group: vagrant
+
+- name: Copy App3 code
+  copy:
+    src: app3/
+    dest: /home/vagrant/app/
+    mode: '0755'
+
+- name: Install dependencies (package.json)
+  npm:
+    path: /home/vagrant/app
+    state: present
+
+- name: Start Postgres
+  service:
+    name: postgresql
+    state: started
+    enabled: yes
+
+- name: Create securebank database
+  become_user: postgres
+  postgresql_db:
+    name: securebank
+    state: present
+
+- name: Set postgres user password
+  become_user: postgres
+  postgresql_user:
+    db: securebank
+    name: postgres
+    password: password
+
+- name: Seed Database
+  shell: "node /home/vagrant/app/seed.js"
+  environment:
+    PGPASSWORD: password
+
+- name: Start App3
+  shell: "nohup node /home/vagrant/app/app.js > /var/log/app3.log 2>&1 &"
+  args:
+    chdir: /home/vagrant/app

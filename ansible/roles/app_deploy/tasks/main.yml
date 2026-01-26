@@ -1,0 +1,15 @@
+- name: Deploy SecureShop (PHP/SQLite) on Ubuntu
+  include_tasks: deploy_secureshop.yml
+  when: inventory_hostname == 'ubuntu'
+
+- name: Deploy CorpForum (Flask/SQLite) on Uduntu1
+  include_tasks: deploy_corpforum.yml
+  when: inventory_hostname == 'uduntu1'
+
+- name: Deploy SecureBank (Node/Postgres) on Uduntu2
+  include_tasks: deploy_securebank.yml
+  when: inventory_hostname == 'uduntu2'
+
+- name: Deploy SecureCMS (Ruby/Mongo) on Uduntu3
+  include_tasks: deploy_securecms.yml
+  when: inventory_hostname == 'uduntu3'

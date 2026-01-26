@@ -1,0 +1,19 @@
+<h2>Create New Page</h2>
+<div class="card">
+    <form method="POST" action="/pages">
+        <label>Title</label>
+        <input type="text" name="title" required>
+        
+        <label>Slug</label>
+        <input type="text" name="slug" required>
+        
+        <label>Content (HTML allowed)</label>
+        <textarea name="content" rows="10"></textarea>
+        
+        <label>
+            <input type="checkbox" name="public" style="width: auto;"> Public
+        </label>
+        <br><br>
+        <button type="submit">Save Page</button>
+    </form>
+</div>

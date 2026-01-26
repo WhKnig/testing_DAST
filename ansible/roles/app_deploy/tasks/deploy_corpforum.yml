@@ -1,0 +1,39 @@
+---
+- name: Install dependencies (Ubuntu)
+  apt:
+    name: [python3, python3-flask, sqlite3]
+    state: present
+    update_cache: yes
+
+- name: Create app directory
+  file:
+    path: /home/vagrant/app
+    state: directory
+    owner: vagrant
+    group: vagrant
+
+- name: Copy App2 code
+  copy:
+    src: app2/
+    dest: /home/vagrant/app/
+    mode: '0755'
+
+- name: Initialize DB
+  command: python3 /home/vagrant/app/init_db.py
+  args:
+    creates: /home/vagrant/app/forum.db
+
+- name: Create profile directory
+  file:
+    path: /home/vagrant/app/profiles
+    state: directory
+
+- name: Create a dummy profile for testing path traversal
+  copy:
+    dest: /home/vagrant/app/profiles/admin
+    content: "This is the admin profile secret."
+
+- name: Start App2
+  shell: "nohup python3 /home/vagrant/app/app.py > /var/log/app2.log 2>&1 &"
+  args:
+    chdir: /home/vagrant/app

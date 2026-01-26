@@ -1,0 +1,32 @@
+{% extends "base.html" %}
+
+{% block content %}
+<div style="max-width: 800px; margin: 2rem auto;">
+    <div class="card">
+        <h1>New Discussion</h1>
+        <form method="POST">
+            <div class="input-group">
+                <label>Title</label>
+                <input type="text" name="title" class="input-control" required>
+            </div>
+
+            <div class="input-group">
+                <label>Category</label>
+                <select name="category_id" class="input-control">
+                    {% for cat in categories %}
+                    <option value="{{ cat['id'] }}">{{ cat['name'] }}</option>
+                    {% endfor %}
+                </select>
+            </div>
+
+            <div class="input-group">
+                <label>Content</label>
+                <textarea name="content" rows="10" class="input-control" required></textarea>
+                <p style="font-size: 0.8rem; color: #64748b;">Markdown is supported (and HTML... 😉)</p>
+            </div>
+
+            <button type="submit" class="btn">Post Thread</button>
+        </form>
+    </div>
+</div>
+{% endblock %}

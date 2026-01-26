@@ -1,0 +1,15 @@
+---
+- name: Provision Target Nodes
+  hosts: targets
+  become: yes
+  roles:
+    - common
+    - app_deploy
+
+- name: Provision Control Node (Kali)
+  hosts: scanners
+  become: yes
+  roles:
+    - common
+    - scanners
+    - testing

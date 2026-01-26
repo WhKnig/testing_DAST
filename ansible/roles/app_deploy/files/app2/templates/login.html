@@ -1,0 +1,20 @@
+{% extends "base.html" %}
+
+{% block content %}
+<div style="max-width: 400px; margin: 4rem auto;">
+    <div class="card">
+        <h2 style="text-align: center;">Login</h2>
+        <form method="POST">
+            <div class="input-group">
+                <label>Username</label>
+                <input type="text" name="username" class="input-control" required>
+            </div>
+            <div class="input-group">
+                <label>Password</label>
+                <input type="password" name="password" class="input-control" required>
+            </div>
+            <button type="submit" class="btn" style="width: 100%;">Log In</button>
+        </form>
+    </div>
+</div>
+{% endblock %}

@@ -1,0 +1,22 @@
+---
+- name: Create directories on Kali
+  file:
+    path: "{{ item }}"
+    state: directory
+  loop:
+    - /results
+    - /home/vagrant/scripts
+
+- name: Copy testing scripts
+  copy:
+    src: "{{ item }}"
+    dest: /home/vagrant/scripts/
+    mode: '0755'
+  loop:
+    - run_tests.py
+    - results_parser.py
+
+- name: Ensure results directory is writable
+  file:
+    path: /results
+    mode: '0777'

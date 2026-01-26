@@ -1,0 +1,92 @@
+:root {
+    --primary: #9d174d;
+    /* Pink 800 */
+    --primary-light: #be185d;
+    --sidebar-bg: #831843;
+    --bg-body: #fdf2f8;
+}
+
+body {
+    font-family: 'Segoe UI', Tahoma, Geneva, Verdana, sans-serif;
+    margin: 0;
+    display: flex;
+    min-height: 100vh;
+    background: var(--bg-body);
+}
+
+nav {
+    width: 250px;
+    background: var(--sidebar-bg);
+    color: white;
+    padding: 1rem;
+    display: flex;
+    flex-direction: column;
+}
+
+nav h1 {
+    margin: 0 0 2rem 0;
+    font-size: 1.5rem;
+    border-bottom: 1px solid rgba(255, 255, 255, 0.2);
+    padding-bottom: 1rem;
+}
+
+nav a {
+    color: rgba(255, 255, 255, 0.8);
+    text-decoration: none;
+    padding: 0.75rem;
+    border-radius: 4px;
+    margin-bottom: 0.5rem;
+    transition: background 0.2s;
+}
+
+nav a:hover {
+    background: rgba(255, 255, 255, 0.1);
+    color: white;
+}
+
+main {
+    flex: 1;
+    padding: 2rem;
+}
+
+.card {
+    background: white;
+    padding: 2rem;
+    border-radius: 8px;
+    box-shadow: 0 2px 5px rgba(0, 0, 0, 0.05);
+    margin-bottom: 2rem;
+}
+
+input,
+textarea,
+select {
+    width: 100%;
+    padding: 0.8rem;
+    margin-bottom: 1rem;
+    border: 1px solid #ddd;
+    border-radius: 4px;
+    box-sizing: border-box;
+    font-family: inherit;
+}
+
+button {
+    background: var(--primary);
+    color: white;
+    padding: 0.8rem 1.5rem;
+    border: none;
+    border-radius: 4px;
+    cursor: pointer;
+    font-weight: bold;
+}
+
+table {
+    width: 100%;
+    border-collapse: collapse;
+}
+
+td,
+th {
+    padding: 1rem;
+    border-bottom: 1px solid #eee;
+    text-align: left;
+}

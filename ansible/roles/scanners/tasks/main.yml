@@ -1,0 +1,751 @@
+---
+# roles/scanners/tasks/main.yml (или просто таски в playbook)
+
+- name: Установить все необходимые пакеты одной задачей
+  apt:
+    name:
+      - python3-pip
+      - python3-dev
+      - libxml2-dev
+      - libxslt1-dev
+      - libssl-dev
+      - zlib1g-dev
+      - libffi-dev
+      - build-essential
+      - wget
+      - curl
+      - default-jre
+      - docker.io
+      - snapd
+      - git
+      - libidn2-0
+      - libidn11-dev          # нужен старым версиям skipfish
+      - libpcre3
+      - libpcre3-dev
+      - zlib1g
+      - openjdk-11-jdk
+      - autoconf
+      - bison
+      - libyaml-dev
+      - libreadline-dev
+      - libncurses5-dev
+      - libgdbm6
+      - libgdbm-dev
+      - libdb-dev
+      - libcurl4-openssl-dev
+      - libcrypto++-dev
+      - pipx
+    state: present
+    update_cache: yes
+    cache_valid_time: 3600
+  environment:
+    DEBIAN_FRONTEND: noninteractive
+  retries: 5
+  delay: 10
+
+
+- name: Запустить и включить snapd
+  systemd:
+    name: snapd
+    state: started
+    enabled: yes
+
+- name: Установить ZAP Proxy (classic snap)
+  community.general.snap:
+    name: zaproxy
+    classic: yes
+
+# ==================== Skipfish ====================
+- name: Клонировать форк skipfish с portable-архивом
+  git:
+    repo: https://github.com/WhKnig/skipf.git
+    dest: "{{ user_home }}/skipf"
+    clone: yes
+    update: yes
+  become: no
+
+- name: Распаковать portable-версию skipfish
+  unarchive:
+    src: "{{ user_home }}/skipf/skipfish-portable.tar.gz"
+    dest: "{{ user_home }}/skipf"
+    remote_src: yes
+    creates: "{{ user_home }}/skipf/skipfish-portable/skipfish"
+  become: no
+
+# Решение проблемы с ASSETS_DIR — принудительно копируем всё содержимое через cp -r (copy модуль иногда глючит с trailing slash)
+- name: Создать системную директорию skipfish
+  file:
+    path: /usr/share/skipfish
+    state: directory
+    mode: '0755'
+
+- name: Копировать ВСЁ содержимое portable-версии в /usr/share/skipfish
+  command: cp -r {{ user_home }}/skipf/skipfish-portable/. /usr/share/skipfish/
+  args:
+    creates: /usr/share/skipfish/skipfish
+  become: yes
+
+# Делаем бинарник доступным в PATH
+- name: Положить skipfish в /usr/local/bin
+  copy:
+    src: /usr/share/skipfish/skipfish
+    dest: /usr/local/bin/skipfish
+    mode: '0755'
+    remote_src: yes
+  become: yes
+
+# Делаем умный wrapper, который всегда запускается из правильной директории
+- name: Установить финальный wrapper для skipfish
+  copy:
+    dest: /usr/local/bin/skipfish
+    mode: '0755'
+    content: |
+      #!/bin/bash
+      # Запускаем skipfish всегда из своей директории — тогда signatures/ ищется правильно
+      cd /usr/share/skipfish
+      exec ./skipfish "$@"
+  become: yes
+
+# ==================== Arachni (native install) ====================
+
+- name: Скачать портативную версию Arachni
+  get_url:
+    url: https://github.com/Arachni/arachni/releases/download/v1.5.1/arachni-1.5.1-0.5.12-linux-x86_64.tar.gz
+    dest: /tmp/arachni.tar.gz
+
+- name: Распаковать Arachni
+  unarchive:
+    src: /tmp/arachni.tar.gz
+    dest: /opt
+    remote_src: yes
+    creates: /opt/arachni-1.5.1-0.5.12
+
+- name: Создать симлинки для Arachni
+  file:
+    src: "/opt/arachni-1.5.1-0.5.12/bin/{{ item }}"
+    dest: "/usr/local/bin/{{ item }}"
+    state: link
+  loop:
+    - arachni
+    - arachni_reporter
+    - arachni_script
+
+# ==================== Wapiti ====================
+# ==================== Wapiti ====================
+- name: Установить Wapiti через pipx
+  command: pipx install wapiti3
+  args:
+    creates: /home/vagrant/.local/bin/wapiti
+  become: yes
+  become_user: vagrant
+
+- name: Добавить путь pipx в PATH (на всякий случай)
+  lineinfile:
+    path: /home/vagrant/.bashrc
+    line: 'export PATH=$PATH:/home/vagrant/.local/bin'
+    state: present
+    create: yes
+  become: yes
+  become_user: vagrant
+
+# ==================== Arachni: Установка Chrome и chromedriver ====================
+- name: Установить unzip для распаковки ZIP-архивов chromedriver
+  apt:
+    name: unzip
+    state: present
+
+# - name: Добавить ключ репозитория Google Chrome
+#   apt_key:
+#     url: https://dl.google.com/linux/linux_signing_key.pub
+#     state: present
+#
+# - name: Добавить репозиторий Google Chrome
+#   apt_repository:
+#     repo: deb [arch=amd64] http://dl.google.com/linux/chrome/deb/ stable main
+#     state: present
+#     filename: google-chrome
+#
+# - name: Установить Google Chrome stable
+#   apt:
+#     name: google-chrome-stable
+#     state: present
+#     update_cache: yes
+#
+# - name: Получить версию Chrome
+#   shell: "google-chrome --version | awk '{print $3}'"
+#   register: chrome_version_result
+#   changed_when: false
+#
+# - name: Скачать chromedriver под версию Chrome
+#   get_url:
+#     url: "https://storage.googleapis.com/chrome-for-testing-public/{{ chrome_version_result.stdout }}/linux64/chromedriver-linux64.zip"
+#     dest: /tmp/chromedriver.zip
+#     timeout: 300
+#
+# - name: Распаковать chromedriver
+#   unarchive:
+#     src: /tmp/chromedriver.zip
+#     dest: /tmp
+#     remote_src: yes
+#
+# - name: Положить chromedriver в /usr/local/bin
+#   copy:
+#     src: /tmp/chromedriver-linux64/chromedriver
+#     dest: /usr/local/bin/chromedriver
+#     mode: '0755'
+#     remote_src: yes
+#
+# - name: Удалить временные файлы chromedriver
+#   file:
+#     path: "{{ item }}"
+#     state: absent
+#   loop:
+#     - /tmp/chromedriver.zip
+#     - /tmp/chromedriver-linux64
+
+# ==================== Удобные алиасы и функции ====================
+- name: Создать алиасы для сканеров
+  blockinfile:
+    path: /etc/profile.d/scanners.sh
+    block: |
+      # Алиасы для сканеров
+      alias zap="/snap/bin/zaproxy"
+      alias arachni="arachni"
+      alias arachni_reporter="arachni_reporter"
+      alias wapiti="wapiti"
+      alias skipfish="skipfish"
+      alias nikto="nikto"
+      alias nmap="nmap"
+
+      # Умная функция для Skipfish — решает ВСЕ проблемы навсегда
+      skipfish_scan() {
+        local output_dir
+        local url
+
+        # Если передан 1 аргумент → это URL, папка по умолчанию
+        if [ $# -eq 1 ]; then
+          url="$1"
+          output_dir="/home/vagrant/skipfish_report"
+        # Если 2 аргумента → первый = папка, второй = URL
+        elif [ $# -eq 2 ]; then
+          output_dir="$(realpath -m "$1" 2>/dev/null || echo "$1")"
+          url="$2"
+        else
+          echo "Использование:"
+          echo "  skipfish_scan <url>                     # отчет в /home/vagrant/skipfish_report"
+          echo "  skipfish_scan <папка_для_отчета> <url>  # кастомная папка"
+          echo ""
+          echo "Примеры:"
+          echo "  skipfish_scan http://testphp.vulnweb.com"
+          echo "  skipfish_scan ~/my_test http://testphp.vulnweb.com"
+          return 1
+        fi
+
+        # Удаляем старую папку (чтобы не было "File exists")
+        rm -rf "$output_dir"
+
+        # Запускаем сканирование
+        skipfish -o "$output_dir" -S /usr/share/skipfish/dictionaries/minimal.wl "$url"
+
+        echo ""
+        echo "Сканирование завершено!"
+        echo "Отчет Skipfish сохранен в: $output_dir/index.html"
+      }
+
+      zap_scan() {
+        /snap/bin/zaproxy -cmd -quickurl "$1" -quickout "/home/vagrant/zap_report.xml"
+        echo "Отчет ZAP сохранен в: /home/vagrant/zap_report.xml"
+      }
+
+      arachni_scan() {
+        arachni "$1" --checks=sql_injection,xss,csrf --report-save-path "/home/vagrant/arachni_report.afr"
+        echo "Отчет Arachni сохранен в: /home/vagrant/arachni_report.afr"
+        echo "Конвертировать: arachni_reporter /home/vagrant/arachni_report.afr --reporter html --output /home/vagrant/arachni_report.html"
+      }
+
+      wapiti_scan() {
+        mkdir -p /home/vagrant/wapiti_report
+        wapiti -u "$1" -m sql,xss,csrf -f json -o /home/vagrant/wapiti_report/report.json
+        echo "Отчет Wapiti сохранен в: /home/vagrant/wapiti_report/report.json"
+      }
+    marker: "# {mark} ANSIBLE MANAGED BLOCK: SCANNERS ALIASES"
+    mode: '0644'
+    create: yes
+# Обычный быстрый запуск
+# skipfish_scan http://testphp.vulnweb.com
+
+# # С кастомной папкой (как ты и хотел)
+# skipfish_scan ~/test http://testphp.vulnweb.com
+# ---
+# - name: Установить базовые зависимости и Docker
+#   apt:
+#     name:
+#       - python3-pip
+#       - python3-dev
+#       - libxml2-dev
+#       - libxslt1-dev
+#       - libssl-dev
+#       - zlib1g-dev
+#       - libffi-dev
+#       - build-essential
+#       - wget
+#       - curl
+#       - default-jre
+#       - docker.io
+#       - snapd
+#       - git
+#       - libidn2-0
+#       - libpcre3
+#       - zlib1g
+#       - openjdk-11-jdk
+#     state: present
+#     update_cache: yes
+#     cache_valid_time: 3600
+#   environment:
+#     DEBIAN_FRONTEND: noninteractive
+#   retries: 3
+#   delay: 5
+
+# - name: Очистить список источников от Kali репозиториев
+#   lineinfile:
+#     path: /etc/apt/sources.list
+#     regexp: '.*kali\.org.*'
+#     state: absent
+#   register: sources_modified
+#   changed_when: sources_modified.changed
+
+# - name: Удалить файлы с Kali репозиториями в sources.list.d
+#   file:
+#     path: "/etc/apt/sources.list.d/{{ item }}"
+#     state: absent
+#   loop:
+#     - kali.list
+#     - kali-rolling.list
+#     - kali-download-kali.list
+#   ignore_errors: yes
+
+# - name: Обновить кэш apt после очистки
+#   apt:
+#     update_cache: yes
+#     cache_valid_time: 3600
+#   when: sources_modified.changed
+#   retries: 3
+#   delay: 2
+
+# - name: Включить snapd сервис
+#   systemd:
+#     name: snapd
+#     state: started
+#     enabled: yes
+#   retries: 5
+#   delay: 2
+
+# - name: Update apt cache
+#   apt:
+#     update_cache: yes
+#   become: yes
+
+# - name: Install snapd package
+#   apt:
+#     name: snapd
+#     state: present
+#   become: yes
+
+# - name: Install zaproxy snap
+#   community.general.snap:
+#     name: zaproxy
+#     classic: yes
+#   become: yes
+
+# - name: Update apt cache
+#   apt:
+#     update_cache: yes
+#   become: yes
+
+# - name: Install required packages
+#   apt:
+#     name:
+#       - build-essential
+#       - libssl-dev
+#       - libidn11-dev
+#       - libcrypto++-dev
+#       - zlib1g-dev
+#       - libpcre3
+#     state: present
+#   become: yes
+
+# - name: Clone skipfish repository
+#   git:
+#     repo: https://github.com/WhKnig/skipf.git
+#     dest: "{{ ansible_facts['env']['HOME'] }}/skipf"
+#     clone: yes
+#     update: yes
+
+# - name: Extract skipfish-portable.tar.gz
+#   unarchive:
+#     src: "{{ ansible_facts['env']['HOME'] }}/skipf/skipfish-portable.tar.gz"
+#     dest: "{{ ansible_facts['env']['HOME'] }}/skipf"
+#     remote_src: yes
+#     creates: "{{ ansible_facts['env']['HOME'] }}/skipf/skipfish-portable/skipfish"
+
+# - name: Copy skipfish binary to /usr/local/bin
+#   copy:
+#     src: "{{ ansible_facts['env']['HOME'] }}/skipf/skipfish-portable/skipfish"
+#     dest: /usr/local/bin/skipfish
+#     mode: '0755'
+#     remote_src: yes
+#   become: yes
+
+# # - name: Check skipfish help output
+# #   command: skipfish -h
+# #   register: skipfish_help
+# #   changed_when: false
+
+# - name: Create skipfish_report directory
+#   file:
+#     path: "{{ ansible_facts['env']['HOME'] }}/skipfish_report"
+#     state: directory
+#     mode: '0755'
+
+# # # Arachni - используем Docker образ
+# # - name: Запустить Arachni в Docker
+# #   docker_container:
+# #     name: arachni
+# #     image: arachni/arachni:latest
+# #     network_mode: host
+# #     state: started
+# #     restart_policy: always
+# #     pull: true
+# #   retries: 3
+# #   delay: 10
+
+# # Arachni - устанавливаем из официального релиза
+# - name: Update apt cache
+#   apt:
+#     update_cache: yes
+#   become: yes
+
+# - name: Install initial packages
+#   apt:
+#     name:
+#       - git
+#       - curl
+#       - build-essential
+#       - libcurl4-openssl-dev
+#       - libxml2-dev
+#       - libxslt1-dev
+#       - libffi-dev
+#       - libssl-dev
+#       - zlib1g-dev
+#     state: present
+#   become: yes
+
+# - name: Clone Arachni repository
+#   git:
+#     repo: https://github.com/Arachni/arachni.git
+#     dest: "{{ ansible_facts['env']['HOME'] }}/arachni"
+#     clone: yes
+#     update: yes
+
+# - name: Install Ruby build dependencies
+#   apt:
+#     name:
+#       - autoconf
+#       - bison
+#       - build-essential
+#       - libssl-dev
+#       - libyaml-dev
+#       - libreadline6-dev
+#       - zlib1g-dev
+#       - libncurses5-dev
+#       - libffi-dev
+#       - libgdbm6
+#       - libgdbm-dev
+#       - libdb-dev
+#     state: present
+#   become: yes
+
+# - name: Clone rbenv
+#   git:
+#     repo: https://github.com/rbenv/rbenv.git
+#     dest: "{{ ansible_facts['env']['HOME'] }}/.rbenv"
+#     clone: yes
+#     update: yes
+
+# - name: Add rbenv to PATH in .bashrc
+#   lineinfile:
+#     path: "{{ ansible_facts['env']['HOME'] }}/.bashrc"
+#     line: 'export PATH="$HOME/.rbenv/bin:$PATH"'
+#     create: yes
+
+# - name: Add rbenv init to .bashrc
+#   lineinfile:
+#     path: "{{ ansible_facts['env']['HOME'] }}/.bashrc"
+#     line: 'eval "$(rbenv init - bash)"'
+#     create: yes
+
+# - name: Clone ruby-build plugin
+#   git:
+#     repo: https://github.com/rbenv/ruby-build.git
+#     dest: "{{ ansible_facts['env']['HOME'] }}/.rbenv/plugins/ruby-build"
+#     clone: yes
+#     update: yes
+
+# - name: Install Ruby 2.7.5 with rbenv
+#   shell: |
+#     export PATH="$HOME/.rbenv/bin:$PATH"
+#     eval "$(rbenv init - bash)"
+#     rbenv install 2.7.5 --skip-existing
+#   args:
+#     executable: /bin/bash
+#     chdir: "{{ ansible_facts['env']['HOME'] }}"
+
+# - name: Set global Ruby version to 2.7.5
+#   shell: |
+#     export PATH="$HOME/.rbenv/bin:$PATH"
+#     eval "$(rbenv init - bash)"
+#     rbenv global 2.7.5
+#   args:
+#     executable: /bin/bash
+#     chdir: "{{ ansible_facts['env']['HOME'] }}"
+
+# - name: Install repeated packages
+#   apt:
+#     name:
+#       - git
+#       - curl
+#       - build-essential
+#       - libcurl4-openssl-dev
+#       - libxml2-dev
+#       - libxslt1-dev
+#       - libffi-dev
+#       - libssl-dev
+#       - zlib1g-dev
+#     state: present
+#   become: yes
+
+# - name: Install bundler 1.17.3
+#   shell: |
+#     export PATH="$HOME/.rbenv/bin:$PATH"
+#     eval "$(rbenv init - bash)"
+#     gem install bundler:1.17.3
+#   args:
+#     executable: /bin/bash
+#     chdir: "{{ ansible_facts['env']['HOME'] }}"
+
+# - name: Create Gemfile for Arachni
+#   copy:
+#     dest: "{{ ansible_facts['env']['HOME'] }}/arachni/Gemfile"
+#     content: |
+#       source 'https://rubygems.org'
+#       gem 'arachni', path: '.'
+#       gem 'ffi', '1.15.5'
+#       gem 'nokogiri', '1.12.5'
+#       gem 'rake', '>= 12.3.3'
+#       gem 'pry'
+#       group :docs do
+#         gem 'yard'
+#         gem 'redcarpet'
+#       end
+#       group :spec do
+#         gem 'rspec'
+#         gem 'faker'
+#       end
+#       group :prof do
+#         gem 'stackprof'
+#         gem 'sys-proctable'
+#         gem 'ruby-mass'
+#         gem 'benchmark-ips'
+#         gem 'memory_profiler'
+#       end
+
+# - name: Run bundle install
+#   shell: |
+#     export PATH="$HOME/.rbenv/bin:$PATH"
+#     eval "$(rbenv init - bash)"
+#     bundle install --without development
+#   args:
+#     executable: /bin/bash
+#     chdir: "{{ ansible_facts['env']['HOME'] }}/arachni"
+
+# - name: Run rake install
+#   shell: |
+#     export PATH="$HOME/.rbenv/bin:$PATH"
+#     eval "$(rbenv init - bash)"
+#     rake install
+#   args:
+#     executable: /bin/bash
+#     chdir: "{{ ansible_facts['env']['HOME'] }}/arachni"
+
+# - name: Test arachni execution
+#   shell: |
+#     export PATH="$HOME/.rbenv/bin:$PATH"
+#     eval "$(rbenv init - bash)"
+#     ~/arachni/bin/arachni -h
+#   args:
+#     executable: /bin/bash
+#     chdir: "{{ ansible_facts['env']['HOME'] }}"
+#   register: arachni_test
+#   changed_when: false
+
+# - name: Copy arachni binary to /usr/local/bin
+#   copy:
+#     src: "{{ ansible_facts['env']['HOME'] }}/arachni/bin/arachni"
+#     dest: /usr/local/bin/arachni
+#     mode: '0755'
+#     remote_src: yes
+#   become: yes
+
+# # Wapiti - устанавливаем через pip
+# - name: Установить Wapiti через pip
+#   pip:
+#     name: wapiti3==3.2.0
+#     executable: pip3
+#     state: present
+#     extra_args: --no-cache-dir
+
+# # # Дополнительные сканеры
+# # - name: Установить Nikto
+# #   apt:
+# #     name: nikto
+# #     state: present
+  
+# # - name: Установить Nmap
+# #   apt:
+# #     name: nmap
+# #     state: present
+
+# # # Создаем удобные алиасы для запуска сканеров
+# # - name: Убедиться, что директория /etc/profile.d существует
+# #   file:
+# #     path: /etc/profile.d
+# #     state: directory
+# #     mode: '0755'
+
+# # - name: Создать файл алиасов для сканеров
+# #   copy:
+# #     content: |
+# #       # Алиасы для сканеров
+# #       alias zap="/snap/bin/zaproxy"
+# #       alias arachni="docker exec arachni arachni"
+# #       alias arachni_report="docker exec arachni arachni_reporter"
+# #       alias wapiti="wapiti"
+# #       alias skipfish="skipfish"
+# #       alias nikto="nikto"
+# #       alias nmap="nmap"
+      
+# #       # Функции для быстрого сканирования
+# #       zap_scan() {
+# #         /snap/bin/zaproxy -cmd -quickurl "$1" -quickout "./report.xml"
+# #         echo "Отчет ZAP сохранен в: ./report.xml"
+# #       }
+      
+# #       arachni_scan() {
+# #         docker exec arachni arachni "$1" --checks sql_injection,xss,csrf --report-save-path "/tmp/report.afr"
+# #         docker cp arachni:/tmp/report.afr ./
+# #         echo "Отчет Arachni сохранен в: ./report.afr"
+# #       }
+      
+# #       skipfish_scan() {
+# #         mkdir -p ./skipfish_report
+# #         skipfish -o ./skipfish_report -S /usr/share/skipfish/dictionaries/minimal.wl "$1"
+# #         echo "Отчет Skipfish сохранен в: ./skipfish_report/"
+# #       }
+      
+# #       wapiti_scan() {
+# #         wapiti -u "$1" -m sql,xss,csrf -f json -o ./wapiti_report.json
+# #         echo "Отчет Wapiti сохранен в: ./wapiti_report.json"
+# #       }
+# #     dest: /etc/profile.d/scanners.sh
+# #     mode: '0644'
+# #     force: yes
+
+# # # Создаем удобные алиасы для запуска сканеров
+# # - name: Создать алиасы для сканеров
+# #   blockinfile:
+# #     path: /etc/profile.d/scanners.sh
+# #     block: |
+# #       # Алиасы для сканеров
+# #       alias zap="/snap/bin/zaproxy"
+# #       alias arachni="arachni"
+# #       alias arachni_report="arachni_reporter"
+# #       alias wapiti="wapiti"
+# #       alias skipfish="skipfish"
+# #       alias nikto="nikto"
+# #       alias nmap="nmap"
+      
+# #       # Функции для быстрого сканирования
+# #       zap_scan() {
+# #         /snap/bin/zaproxy -cmd -quickurl "$1" -quickout "./report.xml"
+# #         echo "Отчет ZAP сохранен в: ./report.xml"
+# #       }
+      
+# #       arachni_scan() {
+# #       arachni "$1" --checks sql_injection,xss,csrf --report-save-path "./arachni_report.afr"
+# #       echo "Отчет Arachni сохранен в: ./arachni_report.afr"
+# #       echo "Для конвертации: arachni_reporter ./arachni_report.afr --report-format html:summary"
+# #       }
+      
+# #       skipfish_scan() {
+# #         mkdir -p ./skipfish_report
+# #         skipfish -o ./skipfish_report -S /usr/share/skipfish/dictionaries/minimal.wl "$1"
+# #         echo "Отчет Skipfish сохранен в: ./skipfish_report/"
+# #       }
+      
+# #       wapiti_scan() {
+# #         wapiti -u "$1" -m sql,xss,csrf -f json -o ./wapiti_report.json
+# #         echo "Отчет Wapiti сохранен в: ./wapiti_report.json"
+# #       }
+# #     marker: "# {mark} ANSIBLE MANAGED BLOCK: SCANNERS ALIASES"
+# #     mode: '0644'
+
+# # Создаем удобные алиасы для запуска сканеров
+# - name: Убедиться, что директория /etc/profile.d существует
+#   file:
+#     path: /etc/profile.d
+#     state: directory
+#     mode: '0755'
+
+# - name: Создать пустой файл для алиасов (если не существует)
+#   file:
+#     path: /etc/profile.d/scanners.sh
+#     state: touch
+#     mode: '0644'
+
+# - name: Создать алиасы для сканеров
+#   blockinfile:
+#     path: /etc/profile.d/scanners.sh
+#     block: |
+#       # Алиасы для сканеров
+#       alias zap="/snap/bin/zaproxy"
+#       alias arachni="arachni"
+#       alias arachni_report="arachni_reporter"
+#       alias wapiti="wapiti"
+#       alias skipfish="skipfish"
+#       alias nikto="nikto"
+#       alias nmap="nmap"
+      
+#       # Функции для быстрого сканирования
+#       zap_scan() {
+#         /snap/bin/zaproxy -cmd -quickurl "$1" -quickout "/home/vagrant/zap_report.xml"
+#         echo "Отчет ZAP сохранен в: /home/vagrant/zap_report.xml"
+#       }
+      
+#       arachni_scan() {
+#         arachni "$1" --checks sql_injection,xss,csrf --report-save-path "./arachni_report.afr"
+#         echo "Отчет Arachni сохранен в: ./arachni_report.afr"
+#         echo "Для конвертации: arachni_reporter ./arachni_report.afr --report-format html:summary"
+#       }
+      
+#       skipfish_scan() {
+#         mkdir -p ./skipfish_report
+#         skipfish -o ./skipfish_report -S /usr/share/skipfish/dictionaries/minimal.wl "$1"
+#         echo "Отчет Skipfish сохранен в: ./skipfish_report/"
+#       }
+      
+#       wapiti_scan() {
+#         wapiti -u "$1" -m sql,xss,csrf -f json -o ./wapiti_report.json
+#         echo "Отчет Wapiti сохранен в: ./wapiti_report.json"
+#       }
+#     marker: "# {mark} ANSIBLE MANAGED BLOCK: SCANNERS ALIASES"
+#     mode: '0644'

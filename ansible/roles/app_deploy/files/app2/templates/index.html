@@ -1,0 +1,36 @@
+{% extends "base.html" %}
+
+{% block content %}
+<div class="card">
+    <h2>Categories</h2>
+    <div class="list-group">
+        {% for cat in categories %}
+        <div class="thread-item">
+            <div class="thread-icon">📁</div>
+            <div class="thread-content">
+                <h4><a href="{{ url_for('category_view', slug=cat['slug']) }}">{{ cat['name'] }}</a></h4>
+                <div class="thread-meta">{{ cat['description'] }}</div>
+            </div>
+        </div>
+        {% endfor %}
+    </div>
+</div>
+
+<div class="card">
+    <h2>Recent Discussions</h2>
+    {% for thread in recent_threads %}
+    <div class="thread-item">
+        <div class="thread-icon">💬</div>
+        <div class="thread-content">
+            <!-- VULN: XSS in title (using |safe to behave like vulnerable raw output, or just don't escape in Jinja if configured, but |safe is explicit vuln simulation here) -->
+            <h4><a href="{{ url_for('thread_view', thread_id=thread['id']) }}">{{ thread['title'] | safe }}</a></h4>
+            <div class="thread-meta">
+                In <a href="{{ url_for('category_view', slug=thread['category_slug']) }}">{{ thread['category_name']
+                    }}</a>
+                by {{ thread['username'] }}
+            </div>
+        </div>
+    </div>
+    {% endfor %}
+</div>
+{% endblock %}

@@ -1,0 +1,44 @@
+---
+- name: Install dependencies (Ubuntu)
+  apt:
+    name: [apache2, php, php-sqlite3, libapache2-mod-php, python3]
+    state: present
+    update_cache: yes
+
+- name: Copy App1 code
+  copy:
+    src: app1/
+    dest: /var/www/html/
+    owner: www-data
+    group: www-data
+    mode: '0644'
+
+- name: Remove default index.html
+  file:
+    path: /var/www/html/index.html
+    state: absent
+
+- name: Initialize Database
+  command: python3 /var/www/html/setup_db.py
+  args:
+    creates: /var/www/html/shop.db
+
+- name: Set permissions on SQLite DB
+  file:
+    path: /var/www/html/shop.db
+    owner: www-data
+    group: www-data
+    mode: '0664'
+
+- name: Set permissions on SQLite DB Directory
+  file:
+    path: /var/www/html/
+    owner: www-data
+    group: www-data
+    mode: '0775'
+
+- name: Ensure Apache is running
+  service:
+    name: apache2
+    state: started
+    enabled: yes

@@ -1,0 +1,47 @@
+{% extends "base.html" %}
+
+{% block content %}
+<div style="margin-bottom: 2rem;">
+    <a href="{{ url_for('category_view', slug=thread['category_slug']) }}">&larr; Back to {{ thread['category_name']
+        }}</a>
+</div>
+
+<h1 style="margin-bottom: 2rem;">{{ thread['title'] | safe }}</h1>
+
+{% for post in posts %}
+<div class="post">
+    <div class="post-sidebar">
+        <div class="user-avatar" style="background-image: url('{{ post[" avatar"] }}'); background-size: cover;"></div>
+        <b>{{ post['username'] }}</b>
+        <div
+            class="badge badge-{{ 'admin' if post['role'] == 'admin' else ('mod' if post['role'] == 'moderator' else 'user') }}">
+            {{ post['role'] }}
+        </div>
+        <div style="font-size: 0.8rem; margin-top: 0.5rem; color: #64748b;">
+            Rep: {{ post['reputation'] }}
+        </div>
+    </div>
+    <div class="post-body">
+        <div
+            style="font-size: 0.8rem; color: #94a3b8; margin-bottom: 1rem; border-bottom: 1px solid #e2e8f0; padding-bottom: 0.5rem;">
+            Posted on {{ post['created_at'] }}
+        </div>
+        <div>
+            <!-- VULN: Stored XSS in content -->
+            {{ post['content'] | safe }}
+        </div>
+    </div>
+</div>
+{% endfor %}
+
+{% if current_user %}
+<div class="card">
+    <h3>Quick Reply</h3>
+    <form method="POST" action=""> <!-- Would route to reply logic -->
+        <textarea class="input-control" rows="5" placeholder="Write a reply..."></textarea>
+        <button type="button" class="btn" style="margin-top: 1rem;">Post Reply (Disabled in Demo)</button>
+    </form>
+</div>
+{% endif %}
+
+{% endblock %}

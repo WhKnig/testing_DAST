@@ -1,0 +1,34 @@
+<%- include('header') %>
+
+    <h1 class="card-title">Transfer Funds</h1>
+
+    <div class="card" style="max-width: 600px;">
+        <form action="/transfer" method="POST">
+            <!-- VULN: No CSRF Token -->
+
+            <div class="form-group">
+                <label class="form-label">From Account</label>
+                <select name="from_account" class="form-control">
+                    <% accounts.forEach(function(acc) { %>
+                        <option value="<%= acc.id %>">
+                            <%= acc.type %> (...<%= acc.account_number.substr(-4) %>) - $<%= acc.balance %>
+                        </option>
+                        <% }); %>
+                </select>
+            </div>
+
+            <div class="form-group">
+                <label class="form-label">To Account Number</label>
+                <input type="text" name="to_account" class="form-control" placeholder="CHK-XXXXXX" required>
+            </div>
+
+            <div class="form-group">
+                <label class="form-label">Amount ($)</label>
+                <input type="number" name="amount" class="form-control" step="0.01" min="0.01" required>
+            </div>
+
+            <button type="submit" class="btn">Confirm Transfer</button>
+        </form>
+    </div>
+
+    <%- include('footer') %>

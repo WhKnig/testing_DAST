@@ -1,0 +1,44 @@
+<!DOCTYPE html>
+<html lang="en">
+
+<head>
+    <meta charset="UTF-8">
+    <title>CorpForum - Enterprise Discussion</title>
+    <link rel="stylesheet" href="{{ url_for('static', filename='css/style.css') }}">
+</head>
+
+<body>
+    <nav class="navbar">
+        <div class="container">
+            <a href="{{ url_for('index') }}" class="brand">CorpForum</a>
+            <div class="nav-links">
+                <a href="{{ url_for('index') }}">Home</a>
+                {% if current_user %}
+                <a href="{{ url_for('new_thread') }}">New Discussion</a>
+                <a href="{{ url_for('profile') }}">Profile</a>
+                <a href="{{ url_for('logout') }}">Logout ({{ current_user['username'] }})</a>
+                {% else %}
+                <a href="{{ url_for('login') }}">Login</a>
+                <a href="{{ url_for('register') }}">Register</a>
+                {% endif %}
+            </div>
+        </div>
+    </nav>
+
+    <div class="container">
+        {% with messages = get_flashed_messages() %}
+        {% if messages %}
+        <ul class="flashes"
+            style="background:#dbeafe; padding: 1rem; border-radius: 6px; color:#1e40af; list-style:none; margin-bottom: 2rem;">
+            {% for message in messages %}
+            <li>{{ message }}</li>
+            {% endfor %}
+        </ul>
+        {% endif %}
+        {% endwith %}
+
+        {% block content %}{% endblock %}
+    </div>
+</body>
+
+</html>
