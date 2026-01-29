@@ -15,37 +15,27 @@ def run_local(cmd):
     subprocess.run(cmd, shell=True, check=True)
 
 def orchestrate():
-    # Loop 1: Create clean state
-    # Assumption: VM is currently running and clean (freshly provisioned)
-    # We will take snapshots now.
     print("Creating 'clean_state' snapshots for all targets...")
     for target in TARGETS.keys():
         try:
-            # Check if snapshot exists? Hard to check easily, just try to delete or force create
-            # Or just save. If it fails due to duplicates, we ignore or name it uniquely.
-            # Vagrant snapshot save [vmname] [snapshotname] -f (force overwrite)
             run_local(f"vagrant snapshot save {target} clean_state --force")
         except Exception as e:
             print(f"Failed to snapshot {target}: {e}")
 
-    # Loop 2: Scans
     for scanner in SCANNERS:
         for target, ip in TARGETS.items():
             for run_num in range(1, 11): 
                 scan_id = run_num
                 print(f"\n=== Starting Job: {scanner} vs {target} (Run {run_num}/10) ===")
                 
-                # 1. Restore Snapshot (Clean State)
                 print(f"Restoring {target} to clean state...")
                 try:
                     run_local(f"vagrant snapshot restore {target} clean_state")
-                    # Wait a bit for the VM to be network-ready after restore
                     time.sleep(10) 
                 except Exception as e:
                     print(f"Failed to restore {target}: {e}")
                     continue
 
-                # 2. Run Scan
                 print(f"Executing scan inside Kali...")
                 scan_cmd = (
                     f"python3 /home/vagrant/scripts/run_tests.py "
